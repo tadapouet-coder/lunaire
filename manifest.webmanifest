@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lunaire — suivi de cycle</title>
+<meta name="description" content="Suivi de cycle menstruel : règles, ovulation et prédictions en continu.">
+<meta name="theme-color" content="#2E1A38">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app">
+
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">☾</span> Lunaire</div>
+    <div class="topbar-actions">
+      <button id="exportBtn" class="icon-btn" title="Exporter les données" aria-label="Exporter">⇩</button>
+      <button id="importBtn" class="icon-btn" title="Importer les données" aria-label="Importer">⇧</button>
+      <button id="settingsBtn" class="icon-btn" title="Réglages" aria-label="Réglages">⚙</button>
+      <input type="file" id="importFile" accept="application/json" hidden>
+    </div>
+  </header>
+
+  <main>
+    <section class="dashboard" id="dashboard">
+      <div class="card wheel-card">
+        <svg id="cycleWheel" viewBox="0 0 240 240" role="img" aria-label="Position dans le cycle actuel"></svg>
+        <div class="wheel-caption">
+          <div class="wheel-day" id="wheelDayLabel">—</div>
+          <div class="wheel-phase" id="wheelPhaseLabel">Aucune donnée</div>
+        </div>
+      </div>
+
+      <div class="card stats-card">
+        <div class="stat">
+          <span class="stat-value" id="statNextPeriod">—</span>
+          <span class="stat-label">avant les prochaines règles</span>
+        </div>
+        <div class="stat-row">
+          <div class="stat-mini">
+            <span class="stat-mini-value" id="statAvgCycle">—</span>
+            <span class="stat-mini-label">cycle moyen</span>
+          </div>
+          <div class="stat-mini">
+            <span class="stat-mini-value" id="statAvgPeriod">—</span>
+            <span class="stat-mini-label">durée des règles</span>
+          </div>
+          <div class="stat-mini">
+            <span class="stat-mini-value" id="statRegularity">—</span>
+            <span class="stat-mini-label">régularité</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card calendar-card">
+      <div class="calendar-nav">
+        <button id="prevMonth" class="icon-btn" aria-label="Mois précédent">‹</button>
+        <div class="calendar-nav-center">
+          <h2 id="monthLabel">—</h2>
+          <button id="todayBtn" class="link-btn">aujourd'hui</button>
+        </div>
+        <button id="nextMonth" class="icon-btn" aria-label="Mois suivant">›</button>
+      </div>
+      <div class="weekdays">
+        <span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span>
+      </div>
+      <div class="calendar-grid" id="calendarGrid"></div>
+      <div class="legend">
+        <span class="legend-item"><i class="dot dot-period"></i>Règles</span>
+        <span class="legend-item"><i class="dot dot-period-predicted"></i>Règles prévues</span>
+        <span class="legend-item"><i class="dot dot-fertile"></i>Fenêtre fertile</span>
+        <span class="legend-item"><i class="dot dot-ovulation"></i>Ovulation</span>
+      </div>
+    </section>
+
+    <section class="card journal-card">
+      <div class="journal-header">
+        <h2>Journal des cycles</h2>
+        <button id="addCycleBtn" class="btn-primary">+ Nouveau cycle</button>
+      </div>
+      <ul id="journalList" class="journal-list"></ul>
+      <p id="journalEmpty" class="empty-hint hidden">Aucun cycle enregistré pour l'instant. Ajoutez le début des dernières règles pour démarrer les prédictions.</p>
+    </section>
+
+    <p class="privacy-note">🔒 Toutes les données restent stockées localement, dans ce navigateur. Rien n'est envoyé sur un serveur. Utilisez « Exporter » régulièrement pour garder une sauvegarde ou transférer les données vers un autre appareil.</p>
+  </main>
+</div>
+
+<!-- Modale cycle -->
+<div id="cycleModal" class="modal-overlay hidden">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cycleModalTitle">
+    <div class="modal-header">
+      <h3 id="cycleModalTitle">Nouveau cycle</h3>
+      <button class="icon-btn" data-close-modal aria-label="Fermer">✕</button>
+    </div>
+    <form id="cycleForm">
+      <input type="hidden" id="cycleId">
+      <label class="field">
+        <span>Début des règles</span>
+        <input type="date" id="periodStart" required>
+      </label>
+      <label class="field">
+        <span>Fin des règles <em>(optionnel)</em></span>
+        <input type="date" id="periodEnd">
+      </label>
+      <label class="field">
+        <span>Date d'ovulation <em>(optionnel, sinon estimée)</em></span>
+        <input type="date" id="ovulationDate">
+      </label>
+      <label class="field">
+        <span>Flux</span>
+        <select id="flow">
+          <option value="">—</option>
+          <option value="light">Léger</option>
+          <option value="medium">Moyen</option>
+          <option value="heavy">Abondant</option>
+        </select>
+      </label>
+      <div class="field">
+        <span>Symptômes</span>
+        <div class="chip-group" id="symptomChips">
+          <button type="button" class="chip" data-symptom="Fatigue">Fatigue</button>
+          <button type="button" class="chip" data-symptom="Maux de tête">Maux de tête</button>
+          <button type="button" class="chip" data-symptom="Douleurs">Douleurs</button>
+          <button type="button" class="chip" data-symptom="Ballonnements">Ballonnements</button>
+          <button type="button" class="chip" data-symptom="Sautes d'humeur">Sautes d'humeur</button>
+          <button type="button" class="chip" data-symptom="Tension mammaire">Tension mammaire</button>
+          <button type="button" class="chip" data-symptom="Acné">Acné</button>
+        </div>
+      </div>
+      <label class="field">
+        <span>Notes</span>
+        <textarea id="notes" rows="2" placeholder="Optionnel"></textarea>
+      </label>
+      <div class="modal-actions">
+        <button type="button" id="deleteCycleBtn" class="btn-danger hidden">Supprimer</button>
+        <div class="modal-actions-right">
+          <button type="button" class="btn-secondary" data-close-modal>Annuler</button>
+          <button type="submit" class="btn-primary">Enregistrer</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modale réglages -->
+<div id="settingsModal" class="modal-overlay hidden">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
+    <div class="modal-header">
+      <h3 id="settingsModalTitle">Réglages</h3>
+      <button class="icon-btn" data-close-modal aria-label="Fermer">✕</button>
+    </div>
+    <form id="settingsForm">
+      <label class="field">
+        <span>Longueur de cycle par défaut (avant d'avoir assez de données)</span>
+        <input type="number" id="defaultCycleLength" min="15" max="60" required>
+      </label>
+      <label class="field">
+        <span>Durée des règles par défaut</span>
+        <input type="number" id="defaultPeriodLength" min="1" max="15" required>
+      </label>
+      <label class="field">
+        <span>Durée de la phase lutéale par défaut</span>
+        <input type="number" id="defaultLutealLength" min="8" max="20" required>
+      </label>
+      <label class="field">
+        <span>Nombre de cycles récents utilisés pour la moyenne</span>
+        <input type="number" id="cyclesToAverage" min="1" max="24" required>
+      </label>
+      <label class="field checkbox-field">
+        <input type="checkbox" id="darkMode">
+        <span>Mode sombre</span>
+      </label>
+      <div class="modal-actions">
+        <div class="modal-actions-right">
+          <button type="button" class="btn-secondary" data-close-modal>Fermer</button>
+          <button type="submit" class="btn-primary">Enregistrer</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
